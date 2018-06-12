@@ -65,16 +65,30 @@ def main():
             super(Net, self).__init__()
             # activation
             self.relu = nn.ReLU()
-            # layers
+            # maxpooling layers
+            self.maxpool = nn.MaxPool2d(2)
+
+            # Conv layers
+            self.conv1 = BayesianLayers.Conv2dGroupNJ(
+                1, 6, kernel_size=5, cuda=FLAGS.cuda)
+            self.conv2 = BayesianLayers.Conv2dGroupNJ(
+                6, 16, kernel_size=5, cuda=FLAGS.cuda)
+            # FC layers
             self.fc1 = BayesianLayers.LinearGroupNJ(
-                28 * 28, 300, clip_var=0.04, cuda=FLAGS.cuda)
-            self.fc2 = BayesianLayers.LinearGroupNJ(300, 100, cuda=FLAGS.cuda)
-            self.fc3 = BayesianLayers.LinearGroupNJ(100, 10, cuda=FLAGS.cuda)
+                256, 120, clip_var=0.04, cuda=FLAGS.cuda)
+            self.fc2 = BayesianLayers.LinearGroupNJ(120, 84, cuda=FLAGS.cuda)
+            self.fc3 = BayesianLayers.LinearGroupNJ(84, 10, cuda=FLAGS.cuda)
             # layers including kl_divergence
-            self.kl_list = [self.fc1, self.fc2, self.fc3]
+            self.kl_list = [self.conv1, self.conv2,
+                            self.fc1, self.fc2, self.fc3]
 
         def forward(self, x):
-            x = x.view(-1, 28 * 28)
+            # x = x.view(-1, 28, 28)
+            # print (x.shape)
+            x = self.relu(self.maxpool(self.conv1(x)))
+            x = self.relu(self.maxpool(self.conv2(x)))
+            x = x.view(-1, 256)
+            # print (x.shape)
             x = self.relu(self.fc1(x))
             x = self.relu(self.fc2(x))
             return self.fc3(x)
@@ -166,22 +180,34 @@ def main():
     for epoch in range(1, FLAGS.epochs + 1):
         train(epoch)
         test()
+    """
         # visualizations
-        weight_mus = [model.fc1.weight_mu, model.fc2.weight_mu]
-        log_alphas = [model.fc1.get_log_dropout_rates(),
+        weight_mus = [model.conv1.weight_mu,
+                      model.conv2.weight_mu,
+                      model.fc1.weight_mu,
+                      model.fc2.weight_mu,
+                      ]
+        log_alphas = [model.conv1.get_log_dropout_rates(),
+                      model.conv2.get_log_dropout_rates(),
+                      model.fc1.get_log_dropout_rates(),
                       model.fc2.get_log_dropout_rates(),
-                      model.fc3.get_log_dropout_rates()]
+                      model.fc3.get_log_dropout_rates(),
+                      ]
         visualise_weights(weight_mus, log_alphas, epoch=epoch)
-        log_alpha = model.fc1.get_log_dropout_rates().cpu().data.numpy()
+        # log_alpha = model.fc1.get_log_dropout_rates().cpu().data.numpy()
+        # visualize_pixel_importance(
+        #     images, log_alpha=log_alpha, epoch=str(epoch))
+        log_alpha = model.conv1.get_log_dropout_rates().cpu().data.numpy()
         visualize_pixel_importance(
             images, log_alpha=log_alpha, epoch=str(epoch))
 
     generate_gif(save='pixel', epochs=FLAGS.epochs)
     generate_gif(save='weight0_e', epochs=FLAGS.epochs)
     generate_gif(save='weight1_e', epochs=FLAGS.epochs)
-
+    """
     # compute compression rate and new model accuracy
-    layers = [model.fc1, model.fc2, model.fc3]
+    layers = [model.conv1, model.conv2,
+              model.fc1, model.fc2, model.fc3]
     thresholds = FLAGS.thresholds
     compute_compression_rate(layers, model.get_masks(thresholds))
 
@@ -204,7 +230,7 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=5)
     parser.add_argument('--batchsize', type=int, default=128)
     parser.add_argument('--thresholds', type=float,
-                        nargs='*', default=[-2.8, -3., -5.])
+                        nargs='*', default=[-2, -3, -2.8, -3., -5.])
 
     FLAGS = parser.parse_args()
     # check if we can put the net on the GPU
