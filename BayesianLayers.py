@@ -56,7 +56,8 @@ class LinearGroupNJ(Module):
         # trainable params according to Eq.(6)
         # dropout params
         self.z_mu = Parameter(torch.Tensor(in_features))
-        self.z_logvar = Parameter(torch.Tensor(in_features))  # = z_mu^2 * alpha
+        self.z_logvar = Parameter(torch.Tensor(
+            in_features))  # = z_mu^2 * alpha
         # weight params
         self.weight_mu = Parameter(torch.Tensor(out_features, in_features))
         self.weight_logvar = Parameter(torch.Tensor(out_features, in_features))
@@ -106,7 +107,8 @@ class LinearGroupNJ(Module):
 
     def compute_posterior_params(self):
         weight_var, z_var = self.weight_logvar.exp(), self.z_logvar.exp()
-        self.post_weight_var = self.z_mu.pow(2) * weight_var + z_var * self.weight_mu.pow(2) + z_var * weight_var
+        self.post_weight_var = self.z_mu.pow(
+            2) * weight_var + z_var * self.weight_mu.pow(2) + z_var * weight_var
         self.post_weight_mu = self.weight_mu * self.z_mu
         return self.post_weight_mu, self.post_weight_var
 
@@ -116,7 +118,7 @@ class LinearGroupNJ(Module):
             return F.linear(x, self.post_weight_mu, self.bias_mu)
 
         batch_size = x.size()[0]
-        # compute z  
+        # compute z
         # note that we reparametrise according to [2] Eq. (11) (not [1])
         z = reparametrize(self.z_mu.repeat(batch_size, 1), self.z_logvar.repeat(batch_size, 1), sampling=self.training,
                           cuda=self.cuda)
@@ -125,7 +127,8 @@ class LinearGroupNJ(Module):
         # to the parametrisation given in [3] Eq. (6)
         xz = x * z
         mu_activations = F.linear(xz, self.weight_mu, self.bias_mu)
-        var_activations = F.linear(xz.pow(2), self.weight_logvar.exp(), self.bias_logvar.exp())
+        var_activations = F.linear(
+            xz.pow(2), self.weight_logvar.exp(), self.bias_logvar.exp())
 
         return reparametrize(mu_activations, var_activations.log(), sampling=self.training, cuda=self.cuda)
 
@@ -134,23 +137,26 @@ class LinearGroupNJ(Module):
         # we use the kl divergence approximation given by [2] Eq.(14)
         k1, k2, k3 = 0.63576, 1.87320, 1.48695
         log_alpha = self.get_log_dropout_rates()
-        KLD = -torch.sum(k1 * self.sigmoid(k2 + k3 * log_alpha) - 0.5 * self.softplus(-log_alpha) - k1)
+        KLD = -torch.sum(k1 * self.sigmoid(k2 + k3 * log_alpha) -
+                         0.5 * self.softplus(-log_alpha) - k1)
 
         # KL(q(w|z)||p(w|z))
         # we use the kl divergence given by [3] Eq.(8)
-        KLD_element = -0.5 * self.weight_logvar + 0.5 * (self.weight_logvar.exp() + self.weight_mu.pow(2)) - 0.5
+        KLD_element = -0.5 * self.weight_logvar + 0.5 * \
+            (self.weight_logvar.exp() + self.weight_mu.pow(2)) - 0.5
         KLD += torch.sum(KLD_element)
 
         # KL bias
-        KLD_element = -0.5 * self.bias_logvar + 0.5 * (self.bias_logvar.exp() + self.bias_mu.pow(2)) - 0.5
+        KLD_element = -0.5 * self.bias_logvar + 0.5 * \
+            (self.bias_logvar.exp() + self.bias_mu.pow(2)) - 0.5
         KLD += torch.sum(KLD_element)
 
         return KLD
 
     def __repr__(self):
         return self.__class__.__name__ + ' (' \
-               + str(self.in_features) + ' -> ' \
-               + str(self.out_features) + ')'
+            + str(self.in_features) + ' -> ' \
+            + str(self.out_features) + ')'
 
 
 # -------------------------------------------------------
@@ -165,6 +171,7 @@ class _ConvNdGroupNJ(Module):
     [2] Molchanov, Dmitry, Arsenii Ashukha, and Dmitry Vetrov. "Variational Dropout Sparsifies Deep Neural Networks." ICML (2017).
     [3] Louizos, Christos, Karen Ullrich, and Max Welling. "Bayesian Compression for Deep Learning." NIPS (2017).
     """
+
     def __init__(self, in_channels, out_channels, kernel_size, stride, padding, dilation, transposed, output_padding,
                  groups, bias, init_weight, init_bias, cuda=False, clip_var=None):
         super(_ConvNdGroupNJ, self).__init__()
@@ -248,7 +255,9 @@ class _ConvNdGroupNJ(Module):
 
     def compute_posterior_params(self):
         weight_var, z_var = self.weight_logvar.exp(), self.z_logvar.exp()
-        self.post_weight_var = self.z_mu.pow(2) * weight_var + z_var * self.weight_mu.pow(2) + z_var * weight_var
+        term1 = self.z_mu.pow(2) * weight_var
+        self.post_weight_var = term1 + z_var * \
+            self.weight_mu.pow(2) + z_var * weight_var
         self.post_weight_mu = self.weight_mu * self.z_mu
         return self.post_weight_mu, self.post_weight_var
 
@@ -257,15 +266,18 @@ class _ConvNdGroupNJ(Module):
         # we use the kl divergence approximation given by [2] Eq.(14)
         k1, k2, k3 = 0.63576, 1.87320, 1.48695
         log_alpha = self.get_log_dropout_rates()
-        KLD = -torch.sum(k1 * self.sigmoid(k2 + k3 * log_alpha) - 0.5 * self.softplus(-log_alpha) - k1)
+        KLD = -torch.sum(k1 * self.sigmoid(k2 + k3 * log_alpha) -
+                         0.5 * self.softplus(-log_alpha) - k1)
 
         # KL(q(w|z)||p(w|z))
         # we use the kl divergence given by [3] Eq.(8)
-        KLD_element = -self.weight_logvar + 0.5 * (self.weight_logvar.exp() + self.weight_mu.pow(2)) - 0.5
+        KLD_element = -self.weight_logvar + 0.5 * \
+            (self.weight_logvar.exp() + self.weight_mu.pow(2)) - 0.5
         KLD += torch.sum(KLD_element)
 
         # KL bias
-        KLD_element = -self.bias_logvar + 0.5 * (self.bias_logvar.exp() + self.bias_mu.pow(2)) - 0.5
+        KLD_element = -self.bias_logvar + 0.5 * \
+            (self.bias_logvar.exp() + self.bias_mu.pow(2)) - 0.5
         KLD += torch.sum(KLD_element)
 
         return KLD
@@ -325,8 +337,8 @@ class Conv1dGroupNJ(_ConvNdGroupNJ):
 
     def __repr__(self):
         return self.__class__.__name__ + ' (' \
-               + str(self.in_features) + ' -> ' \
-               + str(self.out_features) + ')'
+            + str(self.in_features) + ' -> ' \
+            + str(self.out_features) + ')'
 
 
 class Conv2dGroupNJ(_ConvNdGroupNJ):
@@ -367,8 +379,8 @@ class Conv2dGroupNJ(_ConvNdGroupNJ):
 
     def __repr__(self):
         return self.__class__.__name__ + ' (' \
-               + str(self.in_features) + ' -> ' \
-               + str(self.out_features) + ')'
+            + str(self.in_features) + ' -> ' \
+            + str(self.out_features) + ')'
 
 
 class Conv3dGroupNJ(_ConvNdGroupNJ):
@@ -410,5 +422,5 @@ class Conv3dGroupNJ(_ConvNdGroupNJ):
 
     def __repr__(self):
         return self.__class__.__name__ + ' (' \
-               + str(self.in_features) + ' -> ' \
-               + str(self.out_features) + ')'
+            + str(self.in_features) + ' -> ' \
+            + str(self.out_features) + ')'
