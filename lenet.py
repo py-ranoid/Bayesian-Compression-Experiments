@@ -11,7 +11,7 @@ from torch.autograd import Variable
 
 import BayesianLayers
 from compression import compute_compression_rate, compute_reduced_weights
-# from utils import visualize_pixel_importance, generate_gif, visualise_weights
+from utils import visualize_pixel_importance, generate_gif, visualise_weights
 
 N = 60000.  # number of data points in the training set
 
@@ -37,9 +37,10 @@ def main():
         batch_size=FLAGS.batchsize, shuffle=True, **kwargs)
 
     # for later analysis we take some sample digits
-    # mask = 255. * (np.ones((1, 28, 28)))
-    # examples = train_loader.sampler.data_source.train_data[0:5].numpy()
-    # images = np.vstack([mask, examples])
+    unit_shape = (1, 28, 28) if FLAGS.dataset == 'mnist' else (1, 32, 32, 3)
+    mask = 255. * (np.ones(unit_shape))
+    examples = train_loader.sampler.data_source.train_data[0:5]
+    images = np.vstack([mask, examples])
 
     # build a simple MLP
     class Net(nn.Module):
@@ -179,16 +180,20 @@ def main():
         # visualizations
         weight_mus = [model.conv1.weight_mu, model.conv2.weight_mu,
                       model.fc1.weight_mu, model.fc2.weight_mu]
-        log_alphas = [model.conv1.get_log_dropout_rates(), model.conv2.get_log_dropout_rates(),
-                      model.fc1.get_log_dropout_rates(), model.fc2.get_log_dropout_rates(),
+        log_alphas = [model.conv1.get_log_dropout_rates(),
+                      model.conv2.get_log_dropout_rates(),
+                      model.fc1.get_log_dropout_rates(),
+                      model.fc2.get_log_dropout_rates(),
                       model.fc3.get_log_dropout_rates()]
-        # visualise_weights(weight_mus, log_alphas, epoch=epoch)
-        # log_alpha = model.fc1.get_log_dropout_rates().cpu().data.numpy()
-        # visualize_pixel_importance(images, log_alpha=log_alpha, epoch=str(epoch))
+        visualise_weights(weight_mus, log_alphas, epoch=epoch)
+        log_alpha = model.conv1.get_log_dropout_rates().cpu().data.numpy()
+        # visualize_pixel_importance(images,
+        #                            log_alpha=log_alpha,
+        #                            epoch=str(epoch))
 
     # generate_gif(save='pixel', epochs=FLAGS.epochs)
-    # generate_gif(save='weight2_e', epochs=FLAGS.epochs)
-    # generate_gif(save='weight3_e', epochs=FLAGS.epochs)
+    generate_gif(save='weight2_e', epochs=FLAGS.epochs)
+    generate_gif(save='weight3_e', epochs=FLAGS.epochs)
 
     # compute compression rate and new model accuracy
     layers = [model.conv1, model.conv2, model.fc1, model.fc2, model.fc3]
@@ -214,7 +219,7 @@ def main():
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--epochs', type=int, default=30)
+    parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--batchsize', type=int, default=128)
     parser.add_argument('--dataset', type=str, default='cifar10')
     parser.add_argument('--thresholds', type=float,

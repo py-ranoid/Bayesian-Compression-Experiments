@@ -29,6 +29,8 @@ def visualize_pixel_importance(imgs, log_alpha, epoch="pixel_importance"):
     f, ax = plt.subplots(1, num_imgs)
     plt.title("Epoch:" + epoch)
     for i, img in enumerate(imgs):
+        print (log_alpha.shape)
+        print (img.shape)
         img = (img / 255.) - 0.5
         mask = log_alpha.reshape(img.shape)
         mask = 1 - np.clip(np.exp(mask), 0.0, 1)
@@ -72,9 +74,7 @@ def generate_gif(save='tmp', epochs=10):
     images = []
     filenames = ["plots/" + save + "%d.png" %
                  (epoch + 1) for epoch in np.arange(epochs)]
-
-
-for filename in filenames:
-    images.append(imageio.imread(filename))
-    os.remove(filename)
-    imageio.mimsave('figures/' + save + '.gif', images, duration=.5)
+    for filename in filenames:
+        images.append(imageio.imread(filename))
+        os.remove(filename)
+        imageio.mimsave('figures/' + save + '.gif', images, duration=.5)
