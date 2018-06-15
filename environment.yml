@@ -1,4 +1,4 @@
-name: BCDL
+name: DL_env
 channels:
   - pytorch
   - defaults
