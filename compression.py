@@ -82,9 +82,10 @@ def extract_pruned_params(layers, masks):
         # compute posteriors
         post_weight_mu, post_weight_var = layer.compute_posterior_params()
         post_weight_var = post_weight_var.cpu().data.numpy()
-        post_weight_mu  = post_weight_mu.cpu().data.numpy()
+        post_weight_mu = post_weight_mu.cpu().data.numpy()
         # apply mask to mus and variances
-        post_weight_mu  = post_weight_mu * mask
+
+        post_weight_mu = post_weight_mu * mask
         post_weight_var = post_weight_var * mask
 
         post_weight_mus.append(post_weight_mu)
@@ -107,7 +108,8 @@ def _compute_compression_rate(vars, in_precision=32., dist_fun=lambda x: np.max(
     vars = [compress_matrix(v) for v in vars]
     sizes = [v.size for v in vars]
     # compute
-    significant_bits = [float_precisions(v, dist_fun, layer=k + 1) for k, v in enumerate(vars)]
+    significant_bits = [float_precisions(
+        v, dist_fun, layer=k + 1) for k, v in enumerate(vars)]
     exponent_bit = np.ceil(np.log2(np.log2(overflow) + 1.) + 1.)
     total_bits = [1. + exponent_bit + sb for sb in significant_bits]
     OUT_BITS = np.sum(np.asarray(sizes) * np.asarray(total_bits))
@@ -120,15 +122,19 @@ def compute_compression_rate(layers, masks):
     # compute overflow level based on maximum weight
     overflow = np.max([np.max(np.abs(w)) for w in weight_mus])
     # compute compression rate
-    CR_architecture, CR_fast_inference, _, _ = _compute_compression_rate(weight_vars, dist_fun=lambda x: np.mean(x), overflow=overflow)
-    print("Compressing the architecture will degrease the model by a factor of %.1f." % (CR_architecture))
-    print("Making use of weight uncertainty can reduce the model by a factor of %.1f." % (CR_fast_inference))
+    CR_architecture, CR_fast_inference, _, _ = _compute_compression_rate(
+        weight_vars, dist_fun=lambda x: np.mean(x), overflow=overflow)
+    print("Compressing the architecture will degrease the model by a factor of %.1f." % (
+        CR_architecture))
+    print("Making use of weight uncertainty can reduce the model by a factor of %.1f." % (
+        CR_fast_inference))
 
 
 def compute_reduced_weights(layers, masks):
     weight_mus, weight_vars = extract_pruned_params(layers, masks)
     overflow = np.max([np.max(np.abs(w)) for w in weight_mus])
-    _, _, significant_bits, exponent_bits = _compute_compression_rate(weight_vars, dist_fun=lambda x: np.mean(x), overflow=overflow)
+    _, _, significant_bits, exponent_bits = _compute_compression_rate(
+        weight_vars, dist_fun=lambda x: np.mean(x), overflow=overflow)
     weights = [fast_infernce_weights(weight_mu, exponent_bits, significant_bit) for weight_mu, significant_bit in
                zip(weight_mus, significant_bits)]
     return weights
