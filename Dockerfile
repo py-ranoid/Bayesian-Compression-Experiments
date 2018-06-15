@@ -1,4 +1,4 @@
-FROM rombh/gandiva_torch_dev:latest
+FROM rombh/gandiva_torch_dev:beta
 
 WORKDIR /app
 
