@@ -171,7 +171,7 @@ def main():
             test_loss /= len(test_loader.dataset)
             print('Test loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(
                 test_loss, correct, len(test_loader.dataset),
-                100. * correct / len(test_loader.dataset)))
+                100. * float(correct) / len(test_loader.dataset)))
 
     # train the model and save some visualisations on the way
     for epoch in range(1, FLAGS.epochs + 1):
@@ -219,7 +219,7 @@ def main():
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--epochs', type=int, default=10)
+    parser.add_argument('--epochs', type=int, default=15)
     parser.add_argument('--batchsize', type=int, default=128)
     parser.add_argument('--dataset', type=str, default='cifar10')
     parser.add_argument('--thresholds', type=float,
