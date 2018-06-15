@@ -17,7 +17,7 @@ import seaborn as sns
 
 sns.set_style("whitegrid")
 cmap = sns.diverging_palette(240, 10, sep=100, as_cmap=True)
-
+from settings import BASE_PATH
 # -------------------------------------------------------
 # VISUALISATION TOOLS
 # -------------------------------------------------------
@@ -39,7 +39,8 @@ def visualize_pixel_importance(imgs, log_alpha, epoch="pixel_importance"):
         ax[i].grid(False)
         ax[i].set_yticks([])
         ax[i].set_xticks([])
-    plt.savefig("plots/pixel" + epoch + ".png", bbox_inches='tight')
+    plt.savefig(BASE_PATH + "plots/pixel" +
+                epoch + ".png", bbox_inches='tight')
     plt.close()
 
 
@@ -65,16 +66,17 @@ def visualise_weights(weight_mus, log_alphas, epoch):
         s.set_clim([-c * 0.5, c * 0.5])
         f.colorbar(s)
         plt.title("Epoch:" + str(epoch))
-        plt.savefig("plots/weight" + str(i) + '_e' +
+        plt.savefig(BASE_PATH + "plots/weight" + str(i) + '_e' +
                     str(epoch) + ".png", bbox_inches='tight')
         plt.close()
 
 
 def generate_gif(save='tmp', epochs=10):
     images = []
-    filenames = ["plots/" + save + "%d.png" %
+    filenames = [BASE_PATH + "plots/" + save + "%d.png" %
                  (epoch + 1) for epoch in np.arange(epochs)]
     for filename in filenames:
         images.append(imageio.imread(filename))
         os.remove(filename)
-        imageio.mimsave('figures/' + save + '.gif', images, duration=.5)
+        imageio.mimsave(BASE_PATH + 'figures/' + save +
+                        '.gif', images, duration=.5)

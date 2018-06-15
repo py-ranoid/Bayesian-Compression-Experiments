@@ -12,6 +12,7 @@ from torch.autograd import Variable
 import BayesianLayers
 from compression import compute_compression_rate, compute_reduced_weights
 from utils import visualize_pixel_importance, generate_gif, visualise_weights
+from settings import BASE_PATH
 
 N = 60000.  # number of data points in the training set
 
@@ -20,7 +21,7 @@ def main():
     # import data
     kwargs = {'num_workers': 1, 'pin_memory': True} if FLAGS.cuda else {}
 
-    dataset_path = './' + FLAGS.dataset + '_data'
+    dataset_path = BASE_PATH + FLAGS.dataset + '_data'
     ds = datasets.MNIST if FLAGS.dataset == 'mnist' else datasets.CIFAR10
     # print (dataset_path)
     train_loader = torch.utils.data.DataLoader(
