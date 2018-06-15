@@ -11,7 +11,7 @@ from torch.autograd import Variable
 
 import BayesianLayers
 from compression import compute_compression_rate, compute_reduced_weights
-from utils import visualize_pixel_importance, generate_gif, visualise_weights
+# from utils import visualize_pixel_importance, generate_gif, visualise_weights
 from settings import BASE_PATH
 
 N = 60000.  # number of data points in the training set
@@ -186,27 +186,27 @@ def main():
                       model.fc1.get_log_dropout_rates(),
                       model.fc2.get_log_dropout_rates(),
                       model.fc3.get_log_dropout_rates()]
-        visualise_weights(weight_mus, log_alphas, epoch=epoch)
-        log_alpha = model.conv1.get_log_dropout_rates().cpu().data.numpy()
+        # visualise_weights(weight_mus, log_alphas, epoch=epoch)
+        # log_alpha = model.conv1.get_log_dropout_rates().cpu().data.numpy()
         # visualize_pixel_importance(images,
         #                            log_alpha=log_alpha,
         #                            epoch=str(epoch))
 
     # generate_gif(save='pixel', epochs=FLAGS.epochs)
-    generate_gif(save='weight2_e', epochs=FLAGS.epochs)
-    generate_gif(save='weight3_e', epochs=FLAGS.epochs)
+    # generate_gif(save='weight2_e', epochs=FLAGS.epochs)
+    # generate_gif(save='weight3_e', epochs=FLAGS.epochs)
 
     # compute compression rate and new model accuracy
     layers = [model.conv1, model.conv2, model.fc1, model.fc2, model.fc3]
     # thresholds = FLAGS.thresholds
-    threshold_vals = [[-0.6, -0.45, -2.8, -3., -5.],
+    threshold_vals = [[FLAGS.cv1, FLAGS.cv2, FLAGS.fc1, FLAGS.fc2, FLAGS.fc3],
                       ]
     for i, thresholds in enumerate(threshold_vals):
         compute_compression_rate(layers, model.get_masks(thresholds))
 
         print(i, thresholds, "Test error after with reduced bit precision:")
 
-        weights = compute_reduced_weights(layers, model.get_masks(thresholds))
+        weighzs = compute_reduced_weights(layers, model.get_masks(thresholds))
         for layer, weight in zip(layers, weights):
             if FLAGS.cuda:
                 layer.post_weight_mu.data = torch.Tensor(weight).cuda()
@@ -221,6 +221,11 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--epochs', type=int, default=15)
+    parser.add_argument('--cv1', type=float, default=-0.6)
+    parser.add_argument('--cv2', type=float, default=-0.45)
+    parser.add_argument('--fc1', type=float, default=-2.8)
+    parser.add_argument('--fc2', type=float, default=-3.0)
+    parser.add_argument('--fc3', type=float, default=-5.0)
     parser.add_argument('--batchsize', type=int, default=128)
     parser.add_argument('--dataset', type=str, default='cifar10')
     parser.add_argument('--thresholds', type=float,
