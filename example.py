@@ -22,7 +22,7 @@ from torch.autograd import Variable
 
 import BayesianLayers
 from compression import compute_compression_rate, compute_reduced_weights
-from utils import visualize_pixel_importance, generate_gif, visualise_weights
+# from utils import visualize_pixel_importance, generate_gif, visualise_weights
 
 N = 60000.  # number of data points in the training set
 
@@ -34,7 +34,7 @@ def main():
     train_loader = torch.utils.data.DataLoader(
         datasets.MNIST('./data', train=True, download=True,
                        transform=transforms.Compose([
-                           transforms.ToTensor(),lambda x: 2 * (x - 0.5),
+                           transforms.ToTensor(), lambda x: 2 * (x - 0.5),
                        ])),
         batch_size=FLAGS.batchsize, shuffle=True, **kwargs)
 
@@ -56,7 +56,8 @@ def main():
             # activation
             self.relu = nn.ReLU()
             # layers
-            self.fc1 = BayesianLayers.LinearGroupNJ(28 * 28, 300, clip_var=0.04, cuda=FLAGS.cuda)
+            self.fc1 = BayesianLayers.LinearGroupNJ(
+                28 * 28, 300, clip_var=0.04, cuda=FLAGS.cuda)
             self.fc2 = BayesianLayers.LinearGroupNJ(300, 100, cuda=FLAGS.cuda)
             self.fc3 = BayesianLayers.LinearGroupNJ(100, 10, cuda=FLAGS.cuda)
             # layers including kl_divergence
@@ -68,7 +69,7 @@ def main():
             x = self.relu(self.fc2(x))
             return self.fc3(x)
 
-        def get_masks(self,thresholds):
+        def get_masks(self, thresholds):
             weight_masks = []
             mask = None
             for i, (layer, threshold) in enumerate(zip(self.kl_list, thresholds)):
@@ -79,13 +80,15 @@ def main():
                 else:
                     mask = np.copy(next_mask)
                 try:
-                    log_alpha = layers[i + 1].get_log_dropout_rates().cpu().data.numpy()
+                    log_alpha = layers[i +
+                                       1].get_log_dropout_rates().cpu().data.numpy()
                     next_mask = log_alpha < thresholds[i + 1]
                 except:
                     # must be the last mask
                     next_mask = np.ones(10)
 
-                weight_mask = np.expand_dims(mask, axis=0) * np.expand_dims(next_mask, axis=1)
+                weight_mask = np.expand_dims(
+                    mask, axis=0) * np.expand_dims(next_mask, axis=1)
                 weight_masks.append(weight_mask.astype(np.float))
             return weight_masks
 
@@ -140,7 +143,8 @@ def main():
                 data, target = data.cuda(), target.cuda()
             data, target = Variable(data, volatile=True), Variable(target)
             output = model(data)
-            test_loss += discrimination_loss(output, target, size_average=False).data[0]
+            test_loss += discrimination_loss(output,
+                                             target, size_average=False).data[0]
             pred = output.data.max(1, keepdim=True)[1]
             correct += pred.eq(target.data.view_as(pred)).cpu().sum()
         test_loss /= len(test_loader.dataset)
@@ -158,7 +162,8 @@ def main():
                       model.fc3.get_log_dropout_rates()]
         visualise_weights(weight_mus, log_alphas, epoch=epoch)
         log_alpha = model.fc1.get_log_dropout_rates().cpu().data.numpy()
-        visualize_pixel_importance(images, log_alpha=log_alpha, epoch=str(epoch))
+        visualize_pixel_importance(
+            images, log_alpha=log_alpha, epoch=str(epoch))
 
     generate_gif(save='pixel', epochs=FLAGS.epochs)
     generate_gif(save='weight0_e', epochs=FLAGS.epochs)
@@ -177,7 +182,8 @@ def main():
             layer.post_weight_mu.data = torch.Tensor(weight).cuda()
         else:
             layer.post_weight_mu.data = torch.Tensor(weight)
-    for layer in layers: layer.deterministic = True
+    for layer in layers:
+        layer.deterministic = True
     test()
 
 
@@ -186,8 +192,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--epochs', type=int, default=5)
     parser.add_argument('--batchsize', type=int, default=128)
-    parser.add_argument('--thresholds', type=float, nargs='*', default=[-2.8, -3., -5.])
+    parser.add_argument('--thresholds', type=float,
+                        nargs='*', default=[-2.8, -3., -5.])
 
     FLAGS = parser.parse_args()
-    FLAGS.cuda = torch.cuda.is_available()  # check if we can put the net on the GPU
+    # check if we can put the net on the GPU
+    FLAGS.cuda = torch.cuda.is_available()
     main()
