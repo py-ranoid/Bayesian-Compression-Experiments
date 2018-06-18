@@ -1,7 +1,7 @@
 import sys
 import requests
 data = {
-    "command": "python lenet.py " + " ".join(sys.argv[1:]),
+    "command": "python lenet5_caffe.py " + " ".join(sys.argv[1:]),
     "image": "rombh/summer1_pytorch1:latest",
     "arch": "PYTORCH",
     "gpus_required": 1,
