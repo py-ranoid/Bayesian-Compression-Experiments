@@ -39,7 +39,6 @@ def float_precision(x):
 
 
 def float_precisions(X, dist_fun, layer=1):
-
     X = X.flatten()
     out = [float_precision(2 * x) for x in X]
     out = np.ceil(dist_fun(out))
@@ -53,13 +52,12 @@ def special_round(input, significant_bit):
     return rounded
 
 
-def fast_infernce_weights(w, exponent_bit, significant_bit):
-
+def fast_infernce_weights(w, significant_bit):
+    # return w
     return special_round(w, significant_bit)
 
 
 def compress_matrix(x):
-
     if len(x.shape) != 2:
         A, B, C, D = x.shape
         x = x.reshape(A * B,  C * D)
@@ -102,25 +100,27 @@ def extract_pruned_params(layers, masks):
 def _compute_compression_rate(vars, in_precision=32., dist_fun=lambda x: np.max(x), overflow=10e38):
     # compute in  number of bits occupied by the original architecture
     sizes = [v.size for v in vars]
-    nb_weights = float(np.sum(sizes))
-    IN_BITS = in_precision * nb_weights
+    num_weights = float(np.sum(sizes))
+    IN_BITS = in_precision * num_weights
     # prune architecture
-    vars = [compress_matrix(v) for v in vars]
-    sizes = [v.size for v in vars]
+    post_vars = [compress_matrix(v) for v in vars]
+    post_sizes = [v.size for v in post_vars]
+    post_num_weights = float(np.sum(post_sizes))
     # compute
     significant_bits = [float_precisions(
-        v, dist_fun, layer=k + 1) for k, v in enumerate(vars)]
+        v, dist_fun, layer=k + 1) for k, v in enumerate(post_vars)]
     exponent_bit = np.ceil(np.log2(np.log2(overflow) + 1.) + 1.)
     total_bits = [1. + exponent_bit + sb for sb in significant_bits]
-    OUT_BITS = np.sum(np.asarray(sizes) * np.asarray(total_bits))
-    return nb_weights / np.sum(sizes), IN_BITS / OUT_BITS, significant_bits, exponent_bit
+    OUT_BITS = np.sum(np.asarray(post_sizes) * np.asarray(total_bits))
+    return num_weights / post_num_weights, IN_BITS / OUT_BITS, significant_bits, exponent_bit
 
 
 def compute_compression_rate(layers, masks):
     # reduce architecture
     weight_mus, weight_vars = extract_pruned_params(layers, masks)
     # compute overflow level based on maximum weight
-    overflow = np.max([np.max(np.abs(w)) for w in weight_mus])
+    highest_weights = [np.max(np.abs(w)) for w in weight_mus]
+    overflow = np.max(highest_weights)
     # compute compression rate
     CR_architecture, CR_fast_inference, _, _ = _compute_compression_rate(
         weight_vars, dist_fun=lambda x: np.mean(x), overflow=overflow)
@@ -135,6 +135,6 @@ def compute_reduced_weights(layers, masks):
     overflow = np.max([np.max(np.abs(w)) for w in weight_mus])
     _, _, significant_bits, exponent_bits = _compute_compression_rate(
         weight_vars, dist_fun=lambda x: np.mean(x), overflow=overflow)
-    weights = [fast_infernce_weights(weight_mu, exponent_bits, significant_bit) for weight_mu, significant_bit in
+    weights = [fast_infernce_weights(weight_mu, significant_bit) for weight_mu, significant_bit in
                zip(weight_mus, significant_bits)]
     return weights
