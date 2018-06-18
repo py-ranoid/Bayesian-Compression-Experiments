@@ -57,7 +57,9 @@ def fast_infernce_weights(w, significant_bit):
     return special_round(w, significant_bit)
 
 
-def compress_matrix(x):
+def compress_matrix(x, verbose):
+    if verbose:
+        print ("Before :", x.shape)
     if len(x.shape) != 2:
         A, B, C, D = x.shape
         x = x.reshape(A * B,  C * D)
@@ -68,6 +70,8 @@ def compress_matrix(x):
         # remove unnecessary rows, columns
         x = x[(x != 0).any(axis=1), :]  # remove row that are completely 0
         x = x[:, (x != 0).any(axis=0)]  # remove col that are completely 0_com
+    if verbose:
+        print ("After :", x.shape)
     return x
 
 
@@ -97,13 +101,13 @@ def extract_pruned_params(layers, masks):
 # -------------------------------------------------------
 
 
-def _compute_compression_rate(vars, in_precision=32., dist_fun=lambda x: np.max(x), overflow=10e38):
+def _compute_compression_rate(vars, in_precision=32., dist_fun=lambda x: np.max(x), overflow=10e38, compress_verbose=False):
     # compute in  number of bits occupied by the original architecture
     sizes = [v.size for v in vars]
     num_weights = float(np.sum(sizes))
     IN_BITS = in_precision * num_weights
     # prune architecture
-    post_vars = [compress_matrix(v) for v in vars]
+    post_vars = [compress_matrix(v, compress_verbose) for v in vars]
     post_sizes = [v.size for v in post_vars]
     post_num_weights = float(np.sum(post_sizes))
     # compute
@@ -134,7 +138,7 @@ def compute_reduced_weights(layers, masks):
     weight_mus, weight_vars = extract_pruned_params(layers, masks)
     overflow = np.max([np.max(np.abs(w)) for w in weight_mus])
     _, _, significant_bits, exponent_bits = _compute_compression_rate(
-        weight_vars, dist_fun=lambda x: np.mean(x), overflow=overflow)
+        weight_vars, dist_fun=lambda x: np.mean(x), overflow=overflow, compress_verbose=True)
     weights = [fast_infernce_weights(weight_mu, significant_bit) for weight_mu, significant_bit in
                zip(weight_mus, significant_bits)]
     return weights
