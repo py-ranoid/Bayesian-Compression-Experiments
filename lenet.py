@@ -206,7 +206,7 @@ def main():
 
         print(i, thresholds, "Test error after with reduced bit precision:")
 
-        weighzs = compute_reduced_weights(layers, model.get_masks(thresholds))
+        weights = compute_reduced_weights(layers, model.get_masks(thresholds))
         for layer, weight in zip(layers, weights):
             if FLAGS.cuda:
                 layer.post_weight_mu.data = torch.Tensor(weight).cuda()

@@ -68,8 +68,8 @@ def compress_matrix(x):
         x = x[(x != 0).any(axis=1), :]
     else:
         # remove unnecessary rows, columns
-        x = x[(x != 0).any(axis=1), :]
-        x = x[:, (x != 0).any(axis=0)]
+        x = x[(x != 0).any(axis=1), :]  # remove row that are completely 0
+        x = x[:, (x != 0).any(axis=0)]  # remove col that are completely 0_com
     return x
 
 
