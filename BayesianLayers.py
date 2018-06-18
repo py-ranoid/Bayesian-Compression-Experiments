@@ -120,7 +120,9 @@ class LinearGroupNJ(Module):
         batch_size = x.size()[0]
         # compute z
         # note that we reparametrise according to [2] Eq. (11) (not [1])
-        z = reparametrize(self.z_mu.repeat(batch_size, 1), self.z_logvar.repeat(batch_size, 1), sampling=self.training,
+        z = reparametrize(self.z_mu.repeat(batch_size, 1),
+                          self.z_logvar.repeat(batch_size, 1),
+                          sampling=self.training,
                           cuda=self.cuda)
 
         # apply local reparametrisation trick see [1] Eq. (6)

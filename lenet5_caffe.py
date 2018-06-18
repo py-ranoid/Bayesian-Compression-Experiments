@@ -52,17 +52,20 @@ def main():
             # layers
             input_channels = 1 if FLAGS.dataset == 'mnist' else 3
             self.conv1 = BayesianLayers.Conv2dGroupNJ(
-                input_channels, 6, 5, cuda=FLAGS.cuda)
+                input_channels, out_channels=20,
+                kernel_size=5, stride=1, cuda=FLAGS.cuda)
             self.conv2 = BayesianLayers.Conv2dGroupNJ(
-                6, 16, 5, cuda=FLAGS.cuda)
+                20, out_channels=50,
+                kernel_size=5, stride=1, cuda=FLAGS.cuda)
             num_units_fc1 = 256 if FLAGS.dataset == 'mnist' else 400
+            num_units_fc1 = 800
             self.fc1 = BayesianLayers.LinearGroupNJ(
-                num_units_fc1, 120, clip_var=0.04, cuda=FLAGS.cuda)
-            self.fc2 = BayesianLayers.LinearGroupNJ(120, 84, cuda=FLAGS.cuda)
-            self.fc3 = BayesianLayers.LinearGroupNJ(84, 10, cuda=FLAGS.cuda)
+                num_units_fc1, 500, clip_var=0.04, cuda=FLAGS.cuda)
+            self.fc2 = BayesianLayers.LinearGroupNJ(500, 10, cuda=FLAGS.cuda)
+            # self.fc3 = BayesianLayers.LinearGroupNJ(84, 10, cuda=FLAGS.cuda)
             # layers including kl_divergence
             self.kl_list = [self.conv1, self.conv2,
-                            self.fc1, self.fc2, self.fc3]
+                            self.fc1, self.fc2]
 
         def forward(self, x):
             out = F.relu(self.conv1(x))
@@ -71,8 +74,8 @@ def main():
             out = F.max_pool2d(out, 2)
             out = out.view(out.size(0), -1)
             out = F.relu(self.fc1(out))
-            out = F.relu(self.fc2(out))
-            out = self.fc3(out)
+            # out = F.relu(self.fc2(out))
+            out = self.fc2(out)
             return out
 
         def get_masks(self, thresholds):
@@ -181,12 +184,11 @@ def main():
         test()
         # visualizations
         weight_mus = [model.conv1.weight_mu, model.conv2.weight_mu,
-                      model.fc1.weight_mu, model.fc2.weight_mu]
+                      model.fc1.weight_mu]
         log_alphas = [model.conv1.get_log_dropout_rates(),
                       model.conv2.get_log_dropout_rates(),
                       model.fc1.get_log_dropout_rates(),
-                      model.fc2.get_log_dropout_rates(),
-                      model.fc3.get_log_dropout_rates()]
+                      model.fc2.get_log_dropout_rates()]
         # visualise_weights(weight_mus, log_alphas, epoch=epoch)
         # log_alpha = model.conv1.get_log_dropout_rates().cpu().data.numpy()
         # visualize_pixel_importance(images,
@@ -198,9 +200,9 @@ def main():
     # generate_gif(save='weight3_e', epochs=FLAGS.epochs)
 
     # compute compression rate and new model accuracy
-    layers = [model.conv1, model.conv2, model.fc1, model.fc2, model.fc3]
+    layers = [model.conv1, model.conv2, model.fc1, model.fc2]
     # thresholds = FLAGS.thresholds
-    threshold_vals = [[FLAGS.cv1, FLAGS.cv2, FLAGS.fc1, FLAGS.fc2, FLAGS.fc3],
+    threshold_vals = [[FLAGS.cv1, FLAGS.cv2, FLAGS.fc1, FLAGS.fc2],
                       ]
     for i, thresholds in enumerate(threshold_vals):
         compute_compression_rate(layers, model.get_masks(thresholds))
