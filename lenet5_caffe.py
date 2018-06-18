@@ -235,7 +235,7 @@ if __name__ == '__main__':
                         nargs='*', default=[-1, -1, -2.8, -3., -5.])
 
     FLAGS = parser.parse_args()
-    # check if we can put the net on the GPU
+
     FLAGS.cuda = torch.cuda.is_available()
     print (FLAGS.cuda)
 
