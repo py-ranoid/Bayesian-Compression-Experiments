@@ -258,28 +258,13 @@ class _ConvNdGroupNJ(Module):
         log_alpha = self.z_logvar - torch.log(self.z_mu.pow(2) + self.epsilon)
         return log_alpha
 
-    def get_product(self, rates, weight):
-        for i in range(rates.size(0)):
-            weight[i] = weight[i] * \
-                rates[i].expand(weight.size(1), weight.size(2), weight.size(3))
-
-        return weight
-
     def compute_posterior_params(self):
         weight_var, z_var = self.weight_logvar.exp(), self.z_logvar.exp()
-        # print("self.z_mu.pow(2): ", self.z_mu.pow(2).size())
-        # print("weight_var: ", weight_var.size())
-        # print("z_var: ", z_var.size())
-        # print("self.weight_mu.pow(2): ", self.weight_mu.pow(2).size())
-        # print("weight_var: ", weight_var.size())
-        part1 = self.get_product(self.z_mu.pow(2), weight_var)
-        part2 = self.get_product(z_var, self.weight_mu.pow(2))
-        part3 = self.get_product(z_var, weight_var)
+        part1 = self.z_mu.pow(2)[:, None, None, None] * weight_var
+        part2 = z_var[:, None, None, None] * self.weight_mu.pow(2)
+        part3 = z_var[:, None, None, None] * weight_var
         self.post_weight_var = part1 + part2 + part3
-        self.post_weight_mu = self.get_product(
-            self.z_mu.data, self.weight_mu.data)
-        # print("post_weight_mu: ", self.post_weight_mu.size())
-        # print("post_weight_var: ", self.post_weight_var.size())
+        self.post_weight_mu = self.z_mu[:, None, None, None] * self.weight_mu
         return self.post_weight_mu, self.post_weight_var
 
     def kl_divergence(self):

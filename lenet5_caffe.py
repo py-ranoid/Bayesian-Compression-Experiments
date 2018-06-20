@@ -8,6 +8,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.autograd import Variable
+from matplotlib import pyplot as plt
 
 import BayesianLayers
 from compression import compute_compression_rate, compute_reduced_weights
@@ -15,6 +16,8 @@ from compression import compute_compression_rate, compute_reduced_weights
 from settings import BASE_PATH
 
 N = 60000.  # number of data points in the training set
+
+torch.manual_seed(5)
 
 
 def main():
@@ -62,60 +65,62 @@ def main():
             self.fc1 = BayesianLayers.LinearGroupNJ(
                 num_units_fc1, 500, clip_var=0.04, cuda=FLAGS.cuda)
             self.fc2 = BayesianLayers.LinearGroupNJ(500, 10, cuda=FLAGS.cuda)
-            # self.fc3 = BayesianLayers.LinearGroupNJ(84, 10, cuda=FLAGS.cuda)
             # layers including kl_divergence
-            self.kl_list = [self.conv1, self.conv2,
-                            self.fc1, self.fc2]
+            self.kl_list = [self.conv1, self.conv2, self.fc1, self.fc2]
 
         def forward(self, x):
-            out = F.relu(self.conv1(x))
+            out = self.conv1(x)
             out = F.max_pool2d(out, 2)
-            out = F.relu(self.conv2(out))
+            out = self.conv2(out)
             out = F.max_pool2d(out, 2)
             out = out.view(out.size(0), -1)
             out = F.relu(self.fc1(out))
-            # out = F.relu(self.fc2(out))
             out = self.fc2(out)
             return out
 
         def get_masks(self, thresholds):
             weight_masks = []
-            mask = None
+            conv_mask = None
+            lin_mask = None
             for i, (layer, threshold) in enumerate(zip(self.kl_list, thresholds)):
                 # compute dropout mask
-                if layer.get_type() == 'linear':
-                    if mask is None:
-                        log_alpha = layer.get_log_dropout_rates().cpu().data.numpy()
-                        mask = log_alpha < threshold
+                if layer.get_type() == 'conv':
+                    if conv_mask is None:
+                        mask = [True] * layer.in_channels
                     else:
-                        mask = np.copy(next_mask)
+                        mask = np.copy(conv_mask)
+
+                    log_alpha = layers[i].get_log_dropout_rates(
+                    ).cpu().data.numpy()
+                    conv_mask = log_alpha < thresholds[i]
+
+                    print(np.sum(mask), np.sum(conv_mask))
+
+                    weight_mask = np.expand_dims(
+                        mask, axis=0) * np.expand_dims(conv_mask, axis=1)
+                    weight_mask = weight_mask[:, :, None, None]
+                else:
+                    if lin_mask is None:
+                        mask = conv_mask.repeat(
+                            layer.in_features / conv_mask.shape[0])
+                    else:
+                        mask = np.copy(lin_mask)
 
                     try:
                         log_alpha = layers[i +
                                            1].get_log_dropout_rates().cpu().data.numpy()
-                        next_mask = log_alpha < thresholds[i + 1]
+                        lin_mask = log_alpha < thresholds[i + 1]
                     except:
                         # must be the last mask
-                        next_mask = np.ones(10)
+                        lin_mask = np.ones(10)
+
+                    print(np.sum(mask), np.sum(lin_mask))
 
                     weight_mask = np.expand_dims(
-                        mask, axis=0) * np.expand_dims(next_mask, axis=1)
-                else:
-                    in_ch = layer.in_channels
-                    out_ch = layer.out_channels
-                    ks = layer.kernel_size[0]
-
-                    log_alpha = layer.get_log_dropout_rates()
-                    msk = (log_alpha < threshold).type(torch.FloatTensor)
-
-                    temp = torch.ones(out_ch, in_ch, ks, ks)
-
-                    for k in range(len(msk)):
-                        temp[k] = msk[k].expand(in_ch, ks, ks) * temp[k]
-
-                    weight_mask = temp.cpu().data.numpy()
+                        mask, axis=0) * np.expand_dims(lin_mask, axis=1)
 
                 weight_masks.append(weight_mask.astype(np.float))
+
             return weight_masks
 
         def kl_divergence(self):
@@ -157,13 +162,14 @@ def main():
             # clip the variances after each step
             for layer in model.kl_list:
                 layer.clip_variances()
-        print('Epoch: {} \tTrain loss:  {}\t'.format(epoch, loss.item()))
+        print('Epoch: {} \tTrain loss: {:.6f} \t'.format(
+            epoch, loss.item()))
 
     def test():
         model.eval()
+        test_loss = 0
+        correct = 0
         with torch.no_grad():
-            test_loss = 0
-            correct = 0
             for data, target in test_loader:
                 if FLAGS.cuda:
                     data, target = data.cuda(), target.cuda()
@@ -176,48 +182,52 @@ def main():
             test_loss /= len(test_loader.dataset)
             print('Test loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(
                 test_loss, correct, len(test_loader.dataset),
-                100. * float(correct) / len(test_loader.dataset)))
+                100.0 * float(correct) / len(test_loader.dataset)))
 
     # train the model and save some visualisations on the way
     for epoch in range(1, FLAGS.epochs + 1):
         train(epoch)
         test()
         # visualizations
-        weight_mus = [model.conv1.weight_mu, model.conv2.weight_mu,
-                      model.fc1.weight_mu]
-        log_alphas = [model.conv1.get_log_dropout_rates(),
-                      model.conv2.get_log_dropout_rates(),
-                      model.fc1.get_log_dropout_rates(),
-                      model.fc2.get_log_dropout_rates()]
-        # visualise_weights(weight_mus, log_alphas, epoch=epoch)
-        # log_alpha = model.conv1.get_log_dropout_rates().cpu().data.numpy()
-        # visualize_pixel_importance(images,
-        #                            log_alpha=log_alpha,
-        #                            epoch=str(epoch))
+        # weight_mus = [model.conv1.weight_mu, model.conv2.weight_mu,
+        #               model.fc1.weight_mu]
+        log_alphas = [model.conv1.get_log_dropout_rates(), model.conv2.get_log_dropout_rates(),
+                      model.fc1.get_log_dropout_rates(), model.fc2.get_log_dropout_rates()]
+        #visualise_weights(weight_mus, log_alphas, epoch=epoch)
+        # log_alpha = model.fc1.get_log_dropout_rates().cpu().data.numpy()
+        # visualize_pixel_importance(images, log_alpha=log_alpha, epoch=str(epoch))
 
     # generate_gif(save='pixel', epochs=FLAGS.epochs)
-    # generate_gif(save='weight2_e', epochs=FLAGS.epochs)
-    # generate_gif(save='weight3_e', epochs=FLAGS.epochs)
+    #generate_gif(save='weight2_e', epochs=FLAGS.epochs)
+    #generate_gif(save='weight3_e', epochs=FLAGS.epochs)
+
+    lr = 1
+    for lar in log_alphas:
+        plt.hist(lar.cpu().data.numpy(), bins=30)
+        plt.xlabel('Threshold')
+        plt.ylabel('# Groups')
+        plt.savefig('thresh_plots/lenet_%d_epochs_layer%d' %
+                    (FLAGS.epochs, lr))
+        # plt.show()
+        plt.close()
+        lr += 1
 
     # compute compression rate and new model accuracy
     layers = [model.conv1, model.conv2, model.fc1, model.fc2]
-    # thresholds = FLAGS.thresholds
-    threshold_vals = [[FLAGS.cv1, FLAGS.cv2, FLAGS.fc1, FLAGS.fc2],
-                      ]
-    for i, thresholds in enumerate(threshold_vals):
-        compute_compression_rate(layers, model.get_masks(thresholds))
+    thresholds = FLAGS.thresholds
+    compute_compression_rate(layers, model.get_masks(thresholds))
 
-        print(i, thresholds, "Test error after with reduced bit precision:")
+    print("Test error after with reduced bit precision:")
 
-        weights = compute_reduced_weights(layers, model.get_masks(thresholds))
-        for layer, weight in zip(layers, weights):
-            if FLAGS.cuda:
-                layer.post_weight_mu.data = torch.Tensor(weight).cuda()
-            else:
-                layer.post_weight_mu.data = torch.Tensor(weight)
-        for layer in layers:
-            layer.deterministic = True
-        test()
+    weights = compute_reduced_weights(layers, model.get_masks(thresholds))
+    for layer, weight in zip(layers, weights):
+        if FLAGS.cuda:
+            layer.post_weight_mu.data = torch.Tensor(weight).cuda()
+        else:
+            layer.post_weight_mu.data = torch.Tensor(weight)
+    for layer in layers:
+        layer.deterministic = True
+    test()
 
 
 if __name__ == '__main__':
@@ -232,7 +242,7 @@ if __name__ == '__main__':
     parser.add_argument('--batchsize', type=int, default=128)
     parser.add_argument('--dataset', type=str, default='cifar10')
     parser.add_argument('--thresholds', type=float,
-                        nargs='*', default=[-1, -1, -2.8, -3., -5.])
+                        nargs='*', default=[-4., -2., -1, -1.])
 
     FLAGS = parser.parse_args()
 
