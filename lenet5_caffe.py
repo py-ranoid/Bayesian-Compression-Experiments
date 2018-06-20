@@ -268,7 +268,6 @@ def main():
     compute_compression_rate(layers, masks)
 
     print("Test error after with reduced bit precision:")
-
     weights, biases = compute_reduced_weights(layers, masks, FLAGS.prune)
     for layer, weight, bias in zip(layers, weights, biases):
         if FLAGS.cuda:
@@ -292,10 +291,10 @@ if __name__ == '__main__':
     parser.add_argument('--fc2', type=float, default=-3.0)
     parser.add_argument('--fc3', type=float, default=-5.0)
     parser.add_argument('--batchsize', type=int, default=128)
-    parser.add_argument('--prune', type=bool, default=True)
+    parser.add_argument('--prune', type=int, default=True)
     parser.add_argument('--dataset', type=str, default='cifar10')
     parser.add_argument('--thresholds', type=float,
-                        nargs='*', default=[-5., -5., -2, -2.])
+                        nargs='*', default=[-5., -5., -3, -2.5])
 
     FLAGS = parser.parse_args()
 

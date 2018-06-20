@@ -63,14 +63,15 @@ prev_conv_shape = None
 def compress_matrix(x, verbose):
     global prev_conv_shape
     if verbose:
-        print ("Before :", x.shape)
+        print (x.shape, end='\t--> ')
     if len(x.shape) != 2:
         A, B, C, D = x.shape
         x = x.reshape(A * B,  C * D)
         # remove non-necessary filters and rows
         x = x[:, (x != 0).any(axis=0)]
         x = x[(x != 0).any(axis=1), :]
-        print ("After (2D):", x.shape)
+        if verbose:
+            print (x.shape, end='\t--> ')
         if prev_conv_shape == None:
             x = x.reshape(-1, B,  C, D)
             prev_conv_shape = x.shape
@@ -82,7 +83,7 @@ def compress_matrix(x, verbose):
         x = x[(x != 0).any(axis=1), :]  # remove row that are completely 0
         x = x[:, (x != 0).any(axis=0)]  # remove col that are completely 0_com
     if verbose:
-        print ("After :", x.shape)
+        print (x.shape)
     return x
 
 
@@ -144,7 +145,7 @@ def compute_compression_rate(layers, masks):
     overflow = np.max(highest_weights)
     # compute compression rate
     CR_architecture, CR_fast_inference, _, _ = _compute_compression_rate(
-        weight_vars, dist_fun=lambda x: np.mean(x), overflow=overflow, compress_verbose=True)
+        weight_vars, dist_fun=lambda x: np.mean(x), overflow=overflow)
     print("Compressing the architecture will degrease the model by a factor of %.1f." % (
         CR_architecture))
     print("Making use of weight uncertainty can reduce the model by a factor of %.1f." % (
@@ -152,6 +153,7 @@ def compute_compression_rate(layers, masks):
 
 
 def compute_reduced_weights(layers, masks, prune=False):
+    print ("Computing reduced weights")
     global prev_conv_shape
     weight_mus, weight_vars, bias_mus = extract_pruned_params(
         layers, wt_masks=masks[0], bs_masks=masks[1])
