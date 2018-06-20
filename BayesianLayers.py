@@ -115,7 +115,7 @@ class LinearGroupNJ(Module):
     def forward(self, x):
         if self.deterministic:
             assert self.training == False, "Flag deterministic is True. This should not be used in training."
-            return F.linear(x, self.post_weight_mu, self.bias_mu)
+            return F.linear(x, self.post_weight_mu, self.post_bias_mu.view(-1))
 
         batch_size = x.size()[0]
         # compute z
@@ -326,7 +326,7 @@ class Conv1dGroupNJ(_ConvNdGroupNJ):
     def forward(self, x):
         if self.deterministic:
             assert self.training == False, "Flag deterministic is True. This should not be used in training."
-            return F.conv1d(x, self.post_weight_mu, self.bias_mu)
+            return F.conv1d(x, self.post_weight_mu, self.post_bias_mu.view(-1))
         batch_size = x.size()[0]
         # apply local reparametrisation trick see [1] Eq. (6)
         # to the parametrisation given in [3] Eq. (6)
@@ -368,7 +368,7 @@ class Conv2dGroupNJ(_ConvNdGroupNJ):
     def forward(self, x):
         if self.deterministic:
             assert self.training == False, "Flag deterministic is True. This should not be used in training."
-            return F.conv2d(x, self.post_weight_mu, self.bias_mu)
+            return F.conv2d(x, self.post_weight_mu, self.post_bias_mu.view(-1))
         batch_size = x.size()[0]
         # apply local reparametrisation trick see [1] Eq. (6)
         # to the parametrisation given in [3] Eq. (6)
@@ -410,7 +410,7 @@ class Conv3dGroupNJ(_ConvNdGroupNJ):
     def forward(self, x):
         if self.deterministic:
             assert self.training == False, "Flag deterministic is True. This should not be used in training."
-            return F.conv3d(x, self.post_weight_mu, self.bias_mu)
+            return F.conv3d(x, self.post_weight_mu, self.post_bias_mu.view(-1))
         batch_size = x.size()[0]
         # apply local reparametrisation trick see [1] Eq. (6)
         # to the parametrisation given in [3] Eq. (6)

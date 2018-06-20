@@ -57,7 +57,11 @@ def fast_infernce_weights(w, significant_bit):
     return special_round(w, significant_bit)
 
 
+prev_conv_shape = None
+
+
 def compress_matrix(x, verbose):
+    global prev_conv_shape
     if verbose:
         print ("Before :", x.shape)
     if len(x.shape) != 2:
@@ -66,6 +70,13 @@ def compress_matrix(x, verbose):
         # remove non-necessary filters and rows
         x = x[:, (x != 0).any(axis=0)]
         x = x[(x != 0).any(axis=1), :]
+        print ("After (2D):", x.shape)
+        if prev_conv_shape == None:
+            x = x.reshape(-1, B,  C, D)
+            prev_conv_shape = x.shape
+        else:
+            x = x.reshape(-1, prev_conv_shape[0],  C, D)
+            prev_conv_shape = x.shape
     else:
         # remove unnecessary rows, columns
         x = x[(x != 0).any(axis=1), :]  # remove row that are completely 0
@@ -75,25 +86,28 @@ def compress_matrix(x, verbose):
     return x
 
 
-def extract_pruned_params(layers, masks):
+def extract_pruned_params(layers, wt_masks, bs_masks):
 
     post_weight_mus = []
     post_weight_vars = []
-
-    for i, (layer, mask) in enumerate(zip(layers, masks)):
+    post_bias_mus = []
+    for i, (layer, wmask, bmask) in enumerate(zip(layers, wt_masks, bs_masks)):
         # compute posteriors
         post_weight_mu, post_weight_var = layer.compute_posterior_params()
         post_weight_var = post_weight_var.cpu().data.numpy()
         post_weight_mu = post_weight_mu.cpu().data.numpy()
         # apply mask to mus and variances
 
-        post_weight_mu = post_weight_mu * mask
-        post_weight_var = post_weight_var * mask
+        post_weight_mu = post_weight_mu * wmask
+        post_weight_var = post_weight_var * wmask
+
+        post_bias_mu = layer.bias_mu.cpu().data.numpy() * bmask
 
         post_weight_mus.append(post_weight_mu)
         post_weight_vars.append(post_weight_var)
+        post_bias_mus.append(post_bias_mu)
 
-    return post_weight_mus, post_weight_vars
+    return post_weight_mus, post_weight_vars, post_bias_mus
 
 
 # -------------------------------------------------------
@@ -123,27 +137,52 @@ def _compute_compression_rate(vars, in_precision=32., dist_fun=lambda x: np.max(
 
 def compute_compression_rate(layers, masks):
     # reduce architecture
-    weight_mus, weight_vars = extract_pruned_params(layers, masks)
+    weight_mus, weight_vars, bias_mus = extract_pruned_params(
+        layers, wt_masks=masks[0], bs_masks=masks[1])
     # compute overflow level based on maximum weight
     highest_weights = [np.max(np.abs(w)) for w in weight_mus]
     overflow = np.max(highest_weights)
     # compute compression rate
     CR_architecture, CR_fast_inference, _, _ = _compute_compression_rate(
-        weight_vars, dist_fun=lambda x: np.mean(x), overflow=overflow)
+        weight_vars, dist_fun=lambda x: np.mean(x), overflow=overflow, compress_verbose=True)
     print("Compressing the architecture will degrease the model by a factor of %.1f." % (
         CR_architecture))
     print("Making use of weight uncertainty can reduce the model by a factor of %.1f." % (
         CR_fast_inference))
 
 
-def compute_reduced_weights(layers, masks):
-    weight_mus, weight_vars = extract_pruned_params(layers, masks)
+def compute_reduced_weights(layers, masks, prune=False):
+    global prev_conv_shape
+    weight_mus, weight_vars, bias_mus = extract_pruned_params(
+        layers, wt_masks=masks[0], bs_masks=masks[1])
     overflow = np.max([np.max(np.abs(w)) for w in weight_mus])
+    prev_conv_shape = None
     _, _, significant_bits, exponent_bits = _compute_compression_rate(
         weight_vars, dist_fun=lambda x: np.mean(x), overflow=overflow)
-    weights = [fast_infernce_weights(weight_mu, significant_bit) for weight_mu, significant_bit in
-               zip(weight_mus, significant_bits)]
 
-    print ("Pruning weights now :")
-    post_weights = [compress_matrix(v, True) for v in weight_mus]
-    return weights
+    if prune:
+
+        print ("Pruning weights now :")
+        prev_conv_shape = None
+        post_weights = [compress_matrix(v, True) for v in weight_mus]
+
+        print ("Pruning biases now :")
+        prev_conv_shape = None
+        post_biases = [compress_matrix(v.reshape(-1, 1), True)
+                       for v in bias_mus]
+        trimmed_weights = [fast_infernce_weights(weight_mu, significant_bit) for weight_mu, significant_bit in
+                           zip(post_weights, significant_bits)]
+
+        # Rounding off biases with the same precision as the layer's weights
+        trimmed_biases = [fast_infernce_weights(bias, significant_bit)
+                          for bias, significant_bit in zip(post_biases, significant_bits)]
+    else:
+        trimmed_weights = [fast_infernce_weights(weight_mu, significant_bit) for weight_mu, significant_bit in
+                           zip(weight_mus, significant_bits)]
+
+        # Rounding off biases with the same precision as the layer's weights
+        trimmed_biases = [fast_infernce_weights(bias, significant_bit)
+                          for bias, significant_bit in zip(bias_mus, significant_bits)]
+
+    # return post_weights, post_biases
+    return trimmed_weights, trimmed_biases

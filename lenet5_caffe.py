@@ -80,6 +80,7 @@ def main():
 
         def get_masks(self, thresholds):
             weight_masks = []
+            bias_masks = []
             conv_mask = None
             lin_mask = None
             for i, (layer, threshold) in enumerate(zip(self.kl_list, thresholds)):
@@ -90,22 +91,26 @@ def main():
                     else:
                         mask = np.copy(conv_mask)
 
+                    # print ("CONV:", np.array(mask).shape)
                     log_alpha = layers[i].get_log_dropout_rates(
                     ).cpu().data.numpy()
                     conv_mask = log_alpha < thresholds[i]
+                    # print ("CONV-MASK:", conv_mask.shape)
+                    # print (layer.bias_mu.shape)
 
-                    print(np.sum(mask), np.sum(conv_mask))
+                    # print(np.sum(mask), np.sum(conv_mask))
 
                     weight_mask = np.expand_dims(
                         mask, axis=0) * np.expand_dims(conv_mask, axis=1)
                     weight_mask = weight_mask[:, :, None, None]
+                    bias_mask = conv_mask
                 else:
                     if lin_mask is None:
                         mask = conv_mask.repeat(
                             layer.in_features / conv_mask.shape[0])
                     else:
                         mask = np.copy(lin_mask)
-
+                    # print ("LIN:", mask.shape)
                     try:
                         log_alpha = layers[i +
                                            1].get_log_dropout_rates().cpu().data.numpy()
@@ -113,14 +118,56 @@ def main():
                     except:
                         # must be the last mask
                         lin_mask = np.ones(10)
-
-                    print(np.sum(mask), np.sum(lin_mask))
+                    # print ("LIN-MASK:", lin_mask.shape)
+                    # print (layer.bias_mu.shape)
+                    # print(np.sum(mask), np.sum(lin_mask))
 
                     weight_mask = np.expand_dims(
                         mask, axis=0) * np.expand_dims(lin_mask, axis=1)
+                    bias_mask = lin_mask
 
                 weight_masks.append(weight_mask.astype(np.float))
+                bias_masks.append(bias_mask.astype(np.float))
+            return weight_masks, bias_masks
 
+        def get_masks_old(self, thresholds):
+            weight_masks = []
+            mask = None
+            for i, (layer, threshold) in enumerate(zip(self.kl_list, thresholds)):
+                # compute dropout mask
+                if layer.get_type() == 'linear':
+                    if mask is None:
+                        log_alpha = layer.get_log_dropout_rates().cpu().data.numpy()
+                        mask = log_alpha < threshold
+                    else:
+                        mask = np.copy(next_mask)
+
+                    try:
+                        log_alpha = layers[i +
+                                           1].get_log_dropout_rates().cpu().data.numpy()
+                        next_mask = log_alpha < thresholds[i + 1]
+                    except:
+                        # must be the last mask
+                        next_mask = np.ones(10)
+
+                    weight_mask = np.expand_dims(
+                        mask, axis=0) * np.expand_dims(next_mask, axis=1)
+                else:
+                    in_ch = layer.in_channels
+                    out_ch = layer.out_channels
+                    ks = layer.kernel_size[0]
+
+                    log_alpha = layer.get_log_dropout_rates()
+                    msk = (log_alpha < threshold).type(torch.FloatTensor)
+
+                    temp = torch.ones(out_ch, in_ch, ks, ks)
+
+                    for k in range(len(msk)):
+                        temp[k] = msk[k].expand(in_ch, ks, ks) * temp[k]
+
+                    weight_mask = temp.cpu().data.numpy()
+
+                weight_masks.append(weight_mask.astype(np.float))
             return weight_masks
 
         def kl_divergence(self):
@@ -217,16 +264,19 @@ def main():
     # compute compression rate and new model accuracy
     layers = [model.conv1, model.conv2, model.fc1, model.fc2]
     thresholds = FLAGS.thresholds
-    compute_compression_rate(layers, model.get_masks(thresholds))
+    masks = model.get_masks(thresholds)
+    compute_compression_rate(layers, masks)
 
     print("Test error after with reduced bit precision:")
 
-    weights = compute_reduced_weights(layers, model.get_masks(thresholds))
-    for layer, weight in zip(layers, weights):
+    weights, biases = compute_reduced_weights(layers, masks, FLAGS.prune)
+    for layer, weight, bias in zip(layers, weights, biases):
         if FLAGS.cuda:
-            layer.post_weight_mu.data = torch.Tensor(weight).cuda()
+            layer.post_weight_mu = torch.Tensor(weight).cuda()
+            layer.post_bias_mu = (torch.Tensor(bias).cuda())
         else:
-            layer.post_weight_mu.data = torch.Tensor(weight)
+            layer.post_weight_mu = torch.Tensor(weight)
+            layer.post_bias_mu = torch.Tensor(bias)
     for layer in layers:
         layer.deterministic = True
     test()
@@ -242,6 +292,7 @@ if __name__ == '__main__':
     parser.add_argument('--fc2', type=float, default=-3.0)
     parser.add_argument('--fc3', type=float, default=-5.0)
     parser.add_argument('--batchsize', type=int, default=128)
+    parser.add_argument('--prune', type=bool, default=True)
     parser.add_argument('--dataset', type=str, default='cifar10')
     parser.add_argument('--thresholds', type=float,
                         nargs='*', default=[-5., -5., -2, -2.])
