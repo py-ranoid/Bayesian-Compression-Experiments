@@ -114,6 +114,8 @@ def _compute_compression_rate(vars, in_precision=32., dist_fun=lambda x: np.max(
     significant_bits = [float_precisions(
         v, dist_fun, layer=k + 1) for k, v in enumerate(post_vars)]
     exponent_bit = np.ceil(np.log2(np.log2(overflow) + 1.) + 1.)
+    print ("SIGNIFICANT BITS:", significant_bits)
+    print ("EXPONENT BITS:", exponent_bit)
     total_bits = [1. + exponent_bit + sb for sb in significant_bits]
     OUT_BITS = np.sum(np.asarray(post_sizes) * np.asarray(total_bits))
     return num_weights / post_num_weights, IN_BITS / OUT_BITS, significant_bits, exponent_bit
@@ -138,7 +140,10 @@ def compute_reduced_weights(layers, masks):
     weight_mus, weight_vars = extract_pruned_params(layers, masks)
     overflow = np.max([np.max(np.abs(w)) for w in weight_mus])
     _, _, significant_bits, exponent_bits = _compute_compression_rate(
-        weight_vars, dist_fun=lambda x: np.mean(x), overflow=overflow, compress_verbose=True)
+        weight_vars, dist_fun=lambda x: np.mean(x), overflow=overflow)
     weights = [fast_infernce_weights(weight_mu, significant_bit) for weight_mu, significant_bit in
                zip(weight_mus, significant_bits)]
+
+    print ("Pruning weights now :")
+    post_weights = [compress_matrix(v, True) for v in weight_mus]
     return weights

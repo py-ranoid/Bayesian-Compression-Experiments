@@ -2,6 +2,7 @@
 from __future__ import print_function
 import numpy as np
 
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,7 +10,6 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.autograd import Variable
 from matplotlib import pyplot as plt
-
 import BayesianLayers
 from compression import compute_compression_rate, compute_reduced_weights
 # from utils import visualize_pixel_importance, generate_gif, visualise_weights
@@ -206,6 +206,8 @@ def main():
         plt.hist(lar.cpu().data.numpy(), bins=30)
         plt.xlabel('Threshold')
         plt.ylabel('# Groups')
+        if not os.path.exists(BASE_PATH + 'thresh_plots'):
+            os.mkdir(BASE_PATH + 'thresh_plots')
         plt.savefig('thresh_plots/lenet_%d_epochs_layer%d' %
                     (FLAGS.epochs, lr))
         # plt.show()
@@ -242,7 +244,7 @@ if __name__ == '__main__':
     parser.add_argument('--batchsize', type=int, default=128)
     parser.add_argument('--dataset', type=str, default='cifar10')
     parser.add_argument('--thresholds', type=float,
-                        nargs='*', default=[-4., -2., -1, -1.])
+                        nargs='*', default=[-5., -5., -2, -2.])
 
     FLAGS = parser.parse_args()
 
