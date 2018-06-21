@@ -296,9 +296,9 @@ def main():
 
         fname = 'lr' + str(i) + '_ep' + str(FLAGS.epochs) + '_'
         np.savetxt(BASE_PATH + 'vals/' + fname + 'wt.txt', new_weight)
-        hexify(BASE_PATH + 'vals/' + fname + 'wt_hx.txt', new_weight)
+        # hexify(BASE_PATH + 'vals/' + fname + 'wt_hx.txt', new_weight)
         np.savetxt(BASE_PATH + 'vals/' + fname + 'bs.txt', new_bias)
-        hexify(BASE_PATH + 'vals/' + fname + 'bs_hx.txt', new_bias)
+        # hexify(BASE_PATH + 'vals/' + fname + 'bs_hx.txt', new_bias)
 
         if FLAGS.cuda:
             layer.post_weight_mu = torch.Tensor(weight).cuda()
@@ -324,7 +324,7 @@ if __name__ == '__main__':
     parser.add_argument('--prune', type=int, default=True)
     parser.add_argument('--dataset', type=str, default='cifar10')
     parser.add_argument('--thresholds', type=float,
-                        nargs='*', default=[-5., -5., -3, -2.5])
+                        nargs='*', default=[-6.9, -6.5, -4.8, -4.])
 
     FLAGS = parser.parse_args()
 
