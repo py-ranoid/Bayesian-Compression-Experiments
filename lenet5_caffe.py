@@ -152,6 +152,7 @@ def main():
         def get_masks_old(self, thresholds):
             weight_masks = []
             mask = None
+            thresholds = [FLAGS.cv1, FLAGS.cv2, FLAGS.fc1, FLAGS.fc2]
             for i, (layer, threshold) in enumerate(zip(self.kl_list, thresholds)):
                 # compute dropout mask
                 if layer.get_type() == 'linear':
@@ -315,11 +316,11 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--epochs', type=int, default=15)
-    parser.add_argument('--cv1', type=float, default=-0.6)
-    parser.add_argument('--cv2', type=float, default=-0.45)
-    parser.add_argument('--fc1', type=float, default=-2.8)
-    parser.add_argument('--fc2', type=float, default=-3.0)
-    parser.add_argument('--fc3', type=float, default=-5.0)
+    parser.add_argument('--cv1', type=float, default=-6.9)
+    parser.add_argument('--cv2', type=float, default=-6.5)
+    parser.add_argument('--fc1', type=float, default=-4.8)
+    parser.add_argument('--fc2', type=float, default=-4)
+
     parser.add_argument('--batchsize', type=int, default=128)
     parser.add_argument('--prune', type=int, default=True)
     parser.add_argument('--dataset', type=str, default='cifar10')
