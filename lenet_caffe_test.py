@@ -1,5 +1,6 @@
 import glob
 import numpy as np
+import torch
 import torch.nn as nn
 from settings import BASE_PATH
 import torch.nn.functional as F
@@ -23,10 +24,10 @@ weight_files.sort()
 bias_files = glob.glob('vals/lr*ep18*bs.txt')
 bias_files.sort()
 
-weights = [np.loadtxt(fname).reshape(shape) for fname,
+weights = [torch.from_numpy(np.loadtxt(fname).reshape(shape)).float() for fname,
            shape in zip(weight_files, weight_shapes)]
 
-biases = [np.loadtxt(fname).reshape(shape) for fname,
+biases = [torch.from_numpy(np.loadtxt(fname).reshape(shape)).float() for fname,
           shape in zip(bias_files, bias_shapes)]
 
 
