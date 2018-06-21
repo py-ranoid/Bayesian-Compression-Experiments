@@ -82,7 +82,7 @@ def generate_gif(save='tmp', epochs=10):
                         '.gif', images, duration=.5)
 
 
-def header_gen(files, fname):
+def header_gen(files, fname_save):
     header = ''
     num_total = 0
     for fname in files:
@@ -92,10 +92,23 @@ def header_gen(files, fname):
             contents = f.read().strip()
         nums = [str(np.float32(i)) for i in contents.split('\n')]
         num_total += len(nums)
-        varname = 'w_' + layer[0] if layer[1] == 'wt' else 'b_' + layer[0]
-        array = '{' + ','.join(nums) + '}'
-        declaration = 'const float32_t ' + varname + ' = ' + array
+        le = preprocessing.LabelEncoder()
+        le.fit(nums)
+        indices = [str(i) for i in le.transform(nums)]
+        lookup = [str(i) for i in le.classes_]
+
+        tablename = 'lookup_w_' + \
+            layer[0] if layer[1] == 'wt' else 'lookup_b_' + layer[0]
+        varname = 'vals_w_' + \
+            layer[0] if layer[1] == 'wt' else 'vals_b_' + layer[0]
+
+        table = '{' + ','.join(lookup) + '}'
+        array = '{' + ','.join(indices) + '}'
+
+        declaration = 'const float32_t ' + tablename + ' = ' + table
+        declaration += '\nconst short ' + varname + ' = ' + array
         header += '\n\n' + declaration
     print (num_total)
-    with open(fname, 'w') as f:
+    print (fname_save)
+    with open(fname_save, 'w') as f:
         f.write(header)
