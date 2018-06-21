@@ -13,11 +13,24 @@ from matplotlib import pyplot as plt
 import BayesianLayers
 from compression import compute_compression_rate, compute_reduced_weights
 # from utils import visualize_pixel_importance, generate_gif, visualise_weights
+# from utils import
 from settings import BASE_PATH
-
+import struct
 N = 60000.  # number of data points in the training set
 
 torch.manual_seed(5)
+
+
+def float_to_hex(f):
+    return hex(struct.unpack('<I', struct.pack('<f', f))[0])
+
+
+def hexify(fname, arr):
+    hexvals = []
+    for x in arr:
+        hexvals.append(float_to_hex(x))
+    with open(fname, 'w') as f:
+        f.write('\n'.join(hexvals))
 
 
 def main():
@@ -57,21 +70,27 @@ def main():
             self.conv1 = BayesianLayers.Conv2dGroupNJ(
                 input_channels, out_channels=20,
                 kernel_size=5, stride=1, cuda=FLAGS.cuda)
+            self.batch_norm1 = nn.BatchNorm2d(20)
             self.conv2 = BayesianLayers.Conv2dGroupNJ(
                 20, out_channels=50,
                 kernel_size=5, stride=1, cuda=FLAGS.cuda)
+            self.batch_norm2 = nn.BatchNorm2d(50)
             num_units_fc1 = 256 if FLAGS.dataset == 'mnist' else 400
             num_units_fc1 = 800
             self.fc1 = BayesianLayers.LinearGroupNJ(
                 num_units_fc1, 500, clip_var=0.04, cuda=FLAGS.cuda)
+            # self.batch_norm3 = nn.BatchNorm2d(128)
             self.fc2 = BayesianLayers.LinearGroupNJ(500, 10, cuda=FLAGS.cuda)
+            # self.batch_norm1 = nn.BatchNorm2d(20)
             # layers including kl_divergence
             self.kl_list = [self.conv1, self.conv2, self.fc1, self.fc2]
 
         def forward(self, x):
-            out = self.conv1(x)
+            # out = self.relu(self.batch_norm1(self.conv1(x)))
+            out = self.relu(self.conv1(x))
             out = F.max_pool2d(out, 2)
-            out = self.conv2(out)
+            # out = self.relu(self.batch_norm2(self.conv2(out)))
+            out = self.relu(self.conv2(out))
             out = F.max_pool2d(out, 2)
             out = out.view(out.size(0), -1)
             out = F.relu(self.fc1(out))
@@ -269,7 +288,18 @@ def main():
 
     print("Test error after with reduced bit precision:")
     weights, biases = compute_reduced_weights(layers, masks, FLAGS.prune)
-    for layer, weight, bias in zip(layers, weights, biases):
+    if not os.path.exists(BASE_PATH + 'vals'):
+        os.mkdir(BASE_PATH + 'vals')
+    for i, (layer, weight, bias) in enumerate(zip(layers, weights, biases)):
+        new_weight = weight.astype(np.float16).reshape(-1)
+        new_bias = bias.astype(np.float16).reshape(-1)
+
+        fname = 'lr' + str(i) + '_ep' + str(FLAGS.epochs) + '_'
+        np.savetxt(BASE_PATH + 'vals/' + fname + 'wt.txt', new_weight)
+        hexify(BASE_PATH + 'vals/' + fname + 'wt_hx.txt', new_weight)
+        np.savetxt(BASE_PATH + 'vals/' + fname + 'bs.txt', new_bias)
+        hexify(BASE_PATH + 'vals/' + fname + 'bs_hx.txt', new_bias)
+
         if FLAGS.cuda:
             layer.post_weight_mu = torch.Tensor(weight).cuda()
             layer.post_bias_mu = (torch.Tensor(bias).cuda())
