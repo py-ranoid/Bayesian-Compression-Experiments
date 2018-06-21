@@ -11,7 +11,7 @@ Karen Ullrich, Oct 2017
 import os
 import numpy as np
 import imageio
-
+import struct
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -80,3 +80,22 @@ def generate_gif(save='tmp', epochs=10):
         os.remove(filename)
         imageio.mimsave(BASE_PATH + 'figures/' + save +
                         '.gif', images, duration=.5)
+
+
+def header_gen(files, fname):
+    header = ''
+    num_total = 0
+    for fname in files:
+        print (fname)
+        layer = re.findall('.*lr([0-9])*_.*(wt|bs)', fname)[0]
+        with open(fname, 'r') as f:
+            contents = f.read().strip()
+        nums = [str(np.float32(i)) for i in contents.split('\n')]
+        num_total += len(nums)
+        varname = 'w_' + layer[0] if layer[1] == 'wt' else 'b_' + layer[0]
+        array = '{' + ','.join(nums) + '}'
+        declaration = 'const float32_t ' + varname + ' = ' + array
+        header += '\n\n' + declaration
+    print (num_total)
+    with open(fname, 'w') as f:
+        f.write(header)
